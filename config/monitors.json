@@ -23,7 +23,9 @@
   "settings": {
     "check_interval_hours": 6,
     "email_subject_prefix": "[Lang-Monitor]",
+    "email_sender_name": "Lang-Monitor 🔔",
     "include_diff_link": true,
-    "include_commit_message": true
+    "include_commit_message": true,
+    "todo_list_name": "Lang-Monitor"
   }
 }

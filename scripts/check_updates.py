@@ -3,6 +3,7 @@
 """
 Lang-Monitor: 语言文件更新监控器
 监控指定GitHub仓库中的文件变更，并发送邮件通知
+支持 Microsoft To Do 集成
 """
 
 import json
@@ -12,13 +13,15 @@ import smtplib
 import hashlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 import urllib.request
 import urllib.error
 
-# GitHub API 基础URL
+# API 基础URL
 GITHUB_API_BASE = "https://api.github.com"
+MS_GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+MS_LOGIN_BASE = "https://login.microsoftonline.com"
 
 def load_json_file(filepath: str) -> dict:
     """加载JSON文件"""
@@ -185,107 +188,232 @@ def check_for_updates(config: dict, state: dict, token: Optional[str] = None) ->
 
 def format_email_content(updates: List[dict], settings: dict) -> Tuple[str, str]:
     """
-    格式化邮件内容
+    格式化邮件内容 - 美化版本
     返回: (纯文本内容, HTML内容)
     """
-    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    
+    # 按仓库分组更新
+    updates_by_repo = {}
+    for update in updates:
+        repo = update['repo']
+        if repo not in updates_by_repo:
+            updates_by_repo[repo] = []
+        updates_by_repo[repo].append(update)
+    
+    repo_count = len(updates_by_repo)
+    file_count = len(updates)
     
     # 纯文本版本
     text_lines = [
-        f"Lang-Monitor 检测到 {len(updates)} 个文件更新",
-        f"检查时间: {now}",
+        "━" * 50,
+        f"📢 Lang-Monitor 翻译文件更新通知",
+        "━" * 50,
         "",
-        "=" * 50,
+        f"⏰ 检查时间: {now}",
+        f"📊 更新概览: {repo_count} 个仓库 / {file_count} 个文件",
+        "",
+        "━" * 50,
         ""
     ]
     
-    # HTML版本
-    html_parts = [
-        """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
-                h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-                .update-card { background: #f8f9fa; border-left: 4px solid #3498db; padding: 15px; margin: 15px 0; border-radius: 0 8px 8px 0; }
-                .update-card h3 { margin: 0 0 10px 0; color: #2c3e50; }
-                .meta { color: #666; font-size: 0.9em; }
-                .commit-msg { background: #fff; padding: 10px; border-radius: 4px; margin: 10px 0; border: 1px solid #ddd; }
-                .links a { display: inline-block; margin-right: 15px; color: #3498db; text-decoration: none; }
-                .links a:hover { text-decoration: underline; }
-                .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 0.85em; }
-            </style>
-        </head>
-        <body>
-        """,
-        f"<h1>🔔 Lang-Monitor 更新通知</h1>",
-        f"<p>检测到 <strong>{len(updates)}</strong> 个文件更新 | 检查时间: {now}</p>"
-    ]
-    
-    for update in updates:
-        # 纯文本
-        text_lines.extend([
-            f"📦 {update['name']}",
-            f"   仓库: {update['repo']}",
-            f"   路径: {update['path']}",
-            f"   分支: {update['branch']}",
-            f"   作者: {update['commit_author']}",
-            f"   时间: {update['commit_date']}",
-        ])
+    for repo, repo_updates in updates_by_repo.items():
+        text_lines.append(f"📦 仓库: {repo}")
+        text_lines.append("-" * 40)
         
-        if settings.get('include_commit_message', True):
-            text_lines.append(f"   提交: {update['commit_message']}")
-        
-        if settings.get('include_diff_link', True):
+        for update in repo_updates:
             text_lines.extend([
-                f"   对比: {update['compare_url']}",
-                f"   提交: {update['commit_url']}",
-                f"   文件: {update['file_url']}"
+                f"  📄 {update['path']}",
+                f"     监控名: {update['name']}",
+                f"     作者: {update['commit_author']}",
+                f"     时间: {update['commit_date']}",
             ])
-        
-        text_lines.extend(["", "-" * 50, ""])
-        
-        # HTML
-        html_parts.append(f"""
-        <div class="update-card">
-            <h3>📦 {update['name']}</h3>
-            <div class="meta">
-                <p><strong>仓库:</strong> {update['repo']} | <strong>分支:</strong> {update['branch']}</p>
-                <p><strong>路径:</strong> <code>{update['path']}</code></p>
-                <p><strong>作者:</strong> {update['commit_author']} | <strong>时间:</strong> {update['commit_date']}</p>
-            </div>
-        """)
-        
-        if settings.get('include_commit_message', True):
-            html_parts.append(f"""
-            <div class="commit-msg">
-                <strong>提交信息:</strong> {update['commit_message']}
-            </div>
-            """)
-        
-        if settings.get('include_diff_link', True):
-            html_parts.append(f"""
-            <div class="links">
-                <a href="{update['compare_url']}">📊 查看对比</a>
-                <a href="{update['commit_url']}">📝 查看提交</a>
-                <a href="{update['file_url']}">📄 查看文件</a>
-            </div>
-            """)
-        
-        html_parts.append("</div>")
+            
+            if settings.get('include_commit_message', True):
+                text_lines.append(f"     提交: {update['commit_message']}")
+            
+            if settings.get('include_diff_link', True):
+                text_lines.extend([
+                    f"     🔗 对比: {update['compare_url']}",
+                    f"     🔗 提交: {update['commit_url']}"
+                ])
+            text_lines.append("")
+        text_lines.append("")
     
-    html_parts.append("""
-        <div class="footer">
-            <p>此邮件由 <a href="https://github.com/nageih/Lang-Monitor">Lang-Monitor</a> 自动发送</p>
-            <p>如需修改监控配置，请编辑仓库中的 <code>config/monitors.json</code> 文件</p>
-        </div>
-        </body>
-        </html>
-    """)
+    text_lines.extend([
+        "━" * 50,
+        "此邮件由 Lang-Monitor 自动发送",
+        "https://github.com/nageih/Lang-Monitor"
+    ])
     
-    return '\n'.join(text_lines), ''.join(html_parts)
+    # HTML版本 - 现代化设计
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Lang-Monitor 更新通知</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="min-width: 320px;">
+            <tr>
+                <td align="center" style="padding: 40px 20px;">
+                    <table cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px 40px; border-radius: 16px 16px 0 0;">
+                                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                    <tr>
+                                        <td>
+                                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                                                🔔 翻译文件更新通知
+                                            </h1>
+                                            <p style="margin: 8px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 14px;">
+                                                Lang-Monitor 自动检测
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        
+                        <!-- Stats Banner -->
+                        <tr>
+                            <td style="padding: 0 40px;">
+                                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); border-radius: 12px; margin-top: -20px; position: relative;">
+                                    <tr>
+                                        <td style="padding: 20px;" align="center">
+                                            <table cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td style="padding: 0 30px; text-align: center;">
+                                                        <div style="font-size: 32px; font-weight: 700; color: #667eea;">{repo_count}</div>
+                                                        <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">仓库</div>
+                                                    </td>
+                                                    <td style="width: 1px; background-color: #ddd; height: 40px;"></td>
+                                                    <td style="padding: 0 30px; text-align: center;">
+                                                        <div style="font-size: 32px; font-weight: 700; color: #764ba2;">{file_count}</div>
+                                                        <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">文件更新</div>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        
+                        <!-- Time Info -->
+                        <tr>
+                            <td style="padding: 20px 40px 10px 40px;">
+                                <p style="margin: 0; color: #888; font-size: 13px;">
+                                    ⏰ 检查时间: {now}
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <!-- Updates Content -->
+                        <tr>
+                            <td style="padding: 10px 40px 30px 40px;">
+    """
+    
+    for repo, repo_updates in updates_by_repo.items():
+        html_content += f"""
+                                <!-- Repository Section -->
+                                <div style="margin-bottom: 24px;">
+                                    <div style="display: flex; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #f0f2f5;">
+                                        <span style="font-size: 20px; margin-right: 10px;">📦</span>
+                                        <span style="font-size: 16px; font-weight: 600; color: #333;">{repo}</span>
+                                    </div>
+        """
+        
+        for update in repo_updates:
+            commit_msg_html = ""
+            if settings.get('include_commit_message', True):
+                commit_msg_html = f"""
+                                        <div style="background-color: #f8f9fa; padding: 12px 16px; border-radius: 8px; margin: 12px 0; border-left: 3px solid #667eea;">
+                                            <span style="color: #666; font-size: 12px;">💬 提交信息</span><br>
+                                            <span style="color: #333; font-size: 14px;">{update['commit_message']}</span>
+                                        </div>
+                """
+            
+            links_html = ""
+            if settings.get('include_diff_link', True):
+                links_html = f"""
+                                        <div style="margin-top: 16px;">
+                                            <a href="{update['compare_url']}" style="display: inline-block; padding: 8px 16px; background-color: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 13px; margin-right: 8px; margin-bottom: 8px;">📊 查看对比</a>
+                                            <a href="{update['commit_url']}" style="display: inline-block; padding: 8px 16px; background-color: #764ba2; color: white; text-decoration: none; border-radius: 6px; font-size: 13px; margin-right: 8px; margin-bottom: 8px;">📝 查看提交</a>
+                                            <a href="{update['file_url']}" style="display: inline-block; padding: 8px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 6px; font-size: 13px; margin-bottom: 8px;">📄 查看文件</a>
+                                        </div>
+                """
+            
+            html_content += f"""
+                                    <div style="background-color: #ffffff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                                        <div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
+                                            <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">{update['name']}</span>
+                                        </div>
+                                        
+                                        <div style="font-family: 'SF Mono', Consolas, monospace; font-size: 14px; color: #333; background-color: #f6f8fa; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; word-break: break-all;">
+                                            {update['path']}
+                                        </div>
+                                        
+                                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 13px; color: #666;">
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #999;">👤 作者:</span> <span style="color: #333;">{update['commit_author']}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #999;">🕐 时间:</span> <span style="color: #333;">{update['commit_date']}</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0;">
+                                                    <span style="color: #999;">🔀 分支:</span> <span style="color: #333;">{update['branch']}</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        {commit_msg_html}
+                                        {links_html}
+                                    </div>
+            """
+        
+        html_content += """
+                                </div>
+        """
+    
+    html_content += """
+                            </td>
+                        </tr>
+                        
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f8f9fa; padding: 24px 40px; border-radius: 0 0 16px 16px; border-top: 1px solid #e8e8e8;">
+                                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                    <tr>
+                                        <td>
+                                            <p style="margin: 0 0 8px 0; color: #666; font-size: 13px;">
+                                                此邮件由 <a href="https://github.com/nageih/Lang-Monitor" style="color: #667eea; text-decoration: none; font-weight: 500;">Lang-Monitor</a> 自动发送
+                                            </p>
+                                            <p style="margin: 0; color: #999; font-size: 12px;">
+                                                如需修改监控配置，请编辑仓库中的 <code style="background-color: #e8e8e8; padding: 2px 6px; border-radius: 4px; font-size: 11px;">config/monitors.json</code> 文件
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    return '\n'.join(text_lines), html_content
 
 def send_email(updates: List[dict], settings: dict) -> bool:
     """
@@ -309,13 +437,24 @@ def send_email(updates: List[dict], settings: dict) -> bool:
         return False
     
     prefix = settings.get('email_subject_prefix', '[Lang-Monitor]')
-    subject = f"{prefix} 检测到 {len(updates)} 个翻译文件更新"
+    
+    # 生成更美观的邮件标题
+    repo_count = len(set(u['repo'] for u in updates))
+    if repo_count == 1:
+        repo_name = updates[0]['repo'].split('/')[-1]
+        subject = f"{prefix} 📢 {repo_name} 有 {len(updates)} 个文件更新"
+    else:
+        subject = f"{prefix} 📢 {repo_count} 个仓库共 {len(updates)} 个文件更新"
     
     text_content, html_content = format_email_content(updates, settings)
     
+    # 设置发件人显示名称
+    from email.utils import formataddr
+    sender_name = settings.get('email_sender_name', 'Lang-Monitor')
+    
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
-    msg['From'] = username
+    msg['From'] = formataddr((sender_name, username))
     msg['To'] = to_email
     
     msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
@@ -342,6 +481,250 @@ def send_email(updates: List[dict], settings: dict) -> bool:
     except smtplib.SMTPException as e:
         print(f"❌ 邮件发送失败: {e}")
         return False
+
+
+# ============================================================
+# Microsoft To Do 集成
+# ============================================================
+
+def get_ms_access_token() -> Optional[str]:
+    """
+    获取 Microsoft Graph API 访问令牌
+    使用 Client Credentials 流程（需要 Azure AD 应用）
+    
+    需要环境变量:
+    - MS_TODO_TENANT_ID: Azure AD 租户ID
+    - MS_TODO_CLIENT_ID: 应用程序(客户端)ID
+    - MS_TODO_CLIENT_SECRET: 客户端密码
+    
+    或者直接使用:
+    - MS_TODO_REFRESH_TOKEN: 刷新令牌（用于个人账户）
+    """
+    # 方式1: 使用刷新令牌（推荐用于个人微软账户）
+    refresh_token = os.environ.get('MS_TODO_REFRESH_TOKEN')
+    client_id = os.environ.get('MS_TODO_CLIENT_ID')
+    
+    if refresh_token and client_id:
+        return refresh_access_token(client_id, refresh_token)
+    
+    # 方式2: 使用客户端凭证（适用于组织账户）
+    tenant_id = os.environ.get('MS_TODO_TENANT_ID')
+    client_secret = os.environ.get('MS_TODO_CLIENT_SECRET')
+    
+    if all([tenant_id, client_id, client_secret]):
+        return get_client_credentials_token(tenant_id, client_id, client_secret)
+    
+    return None
+
+
+def refresh_access_token(client_id: str, refresh_token: str) -> Optional[str]:
+    """使用刷新令牌获取新的访问令牌"""
+    url = f"{MS_LOGIN_BASE}/common/oauth2/v2.0/token"
+    
+    data = {
+        'client_id': client_id,
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token,
+        'scope': 'Tasks.ReadWrite offline_access'
+    }
+    
+    try:
+        encoded_data = urllib.parse.urlencode(data).encode('utf-8')
+        req = urllib.request.Request(url, data=encoded_data, method='POST')
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            
+            # 如果返回了新的刷新令牌，输出提示
+            new_refresh_token = result.get('refresh_token')
+            if new_refresh_token and new_refresh_token != refresh_token:
+                print("⚠️  注意: 获得了新的刷新令牌，请更新 MS_TODO_REFRESH_TOKEN")
+                print(f"   新令牌: {new_refresh_token[:20]}...")
+            
+            return result.get('access_token')
+            
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        print(f"❌ 获取 MS 访问令牌失败: {e.code} - {error_body}")
+        return None
+    except Exception as e:
+        print(f"❌ 获取 MS 访问令牌失败: {e}")
+        return None
+
+
+def get_client_credentials_token(tenant_id: str, client_id: str, client_secret: str) -> Optional[str]:
+    """使用客户端凭证获取访问令牌（组织账户）"""
+    url = f"{MS_LOGIN_BASE}/{tenant_id}/oauth2/v2.0/token"
+    
+    data = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'grant_type': 'client_credentials',
+        'scope': 'https://graph.microsoft.com/.default'
+    }
+    
+    try:
+        encoded_data = urllib.parse.urlencode(data).encode('utf-8')
+        req = urllib.request.Request(url, data=encoded_data, method='POST')
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            return result.get('access_token')
+            
+    except Exception as e:
+        print(f"❌ 获取 MS 访问令牌失败: {e}")
+        return None
+
+
+def get_or_create_todo_list(access_token: str, list_name: str = "Lang-Monitor") -> Optional[str]:
+    """获取或创建 To Do 列表，返回列表ID"""
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    
+    # 首先尝试获取现有列表
+    try:
+        req = urllib.request.Request(
+            f"{MS_GRAPH_API_BASE}/me/todo/lists",
+            headers=headers
+        )
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            
+            for lst in result.get('value', []):
+                if lst.get('displayName') == list_name:
+                    return lst.get('id')
+    except Exception as e:
+        print(f"⚠️  获取 To Do 列表失败: {e}")
+    
+    # 如果列表不存在，创建新列表
+    try:
+        create_data = json.dumps({'displayName': list_name}).encode('utf-8')
+        req = urllib.request.Request(
+            f"{MS_GRAPH_API_BASE}/me/todo/lists",
+            data=create_data,
+            headers=headers,
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            print(f"✅ 已创建 To Do 列表: {list_name}")
+            return result.get('id')
+    except Exception as e:
+        print(f"❌ 创建 To Do 列表失败: {e}")
+        return None
+
+
+def create_todo_task(access_token: str, list_id: str, update: dict) -> bool:
+    """在 To Do 中创建任务"""
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    
+    # 构建任务标题和内容
+    title = f"🔄 翻译更新: {update['name']} - {update['path'].split('/')[-1]}"
+    
+    # 构建任务描述（支持富文本）
+    body_content = f"""<h3>📦 {update['name']}</h3>
+<p><strong>仓库:</strong> {update['repo']}<br>
+<strong>路径:</strong> {update['path']}<br>
+<strong>分支:</strong> {update['branch']}<br>
+<strong>作者:</strong> {update['commit_author']}<br>
+<strong>时间:</strong> {update['commit_date']}</p>
+<p><strong>提交信息:</strong> {update['commit_message']}</p>
+<p>
+<a href="{update['compare_url']}">📊 查看对比</a> | 
+<a href="{update['commit_url']}">📝 查看提交</a> | 
+<a href="{update['file_url']}">📄 查看文件</a>
+</p>"""
+    
+    task_data = {
+        'title': title,
+        'body': {
+            'content': body_content,
+            'contentType': 'html'
+        },
+        'importance': 'normal',
+        'linkedResources': [
+            {
+                'webUrl': update['file_url'],
+                'applicationName': 'GitHub',
+                'displayName': f"查看文件: {update['path']}"
+            }
+        ]
+    }
+    
+    try:
+        encoded_data = json.dumps(task_data).encode('utf-8')
+        req = urllib.request.Request(
+            f"{MS_GRAPH_API_BASE}/me/todo/lists/{list_id}/tasks",
+            data=encoded_data,
+            headers=headers,
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return True
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        print(f"❌ 创建任务失败: {e.code} - {error_body}")
+        return False
+    except Exception as e:
+        print(f"❌ 创建任务失败: {e}")
+        return False
+
+
+def create_todo_tasks(updates: List[dict], settings: dict) -> bool:
+    """
+    在 Microsoft To Do 中创建任务
+    
+    需要环境变量:
+    - MS_TODO_CLIENT_ID: Azure AD 应用ID
+    - MS_TODO_REFRESH_TOKEN: 刷新令牌
+    
+    或者:
+    - MS_TODO_TENANT_ID: 租户ID（组织账户）
+    - MS_TODO_CLIENT_ID: 应用ID
+    - MS_TODO_CLIENT_SECRET: 客户端密码
+    """
+    # 检查是否配置了 Microsoft To Do
+    if not os.environ.get('MS_TODO_CLIENT_ID'):
+        print("⚠️  未配置 Microsoft To Do，跳过任务创建")
+        return False
+    
+    print("\n📋 正在创建 Microsoft To Do 任务...")
+    
+    # 获取访问令牌
+    access_token = get_ms_access_token()
+    if not access_token:
+        print("❌ 无法获取 Microsoft 访问令牌")
+        return False
+    
+    # 获取或创建任务列表
+    list_name = settings.get('todo_list_name', 'Lang-Monitor')
+    list_id = get_or_create_todo_list(access_token, list_name)
+    if not list_id:
+        print("❌ 无法获取或创建 To Do 列表")
+        return False
+    
+    # 创建任务
+    success_count = 0
+    for update in updates:
+        if create_todo_task(access_token, list_id, update):
+            success_count += 1
+            print(f"   ✅ {update['name']}: {update['path']}")
+        else:
+            print(f"   ❌ {update['name']}: {update['path']}")
+    
+    print(f"\n✅ Microsoft To Do: 成功创建 {success_count}/{len(updates)} 个任务")
+    return success_count > 0
+
+
+# 需要导入 urllib.parse
+import urllib.parse
 
 def main():
     """主函数"""
@@ -389,6 +772,13 @@ def main():
         else:
             print("⚠️  未配置邮件，跳过邮件发送")
             print("   设置 EMAIL_* 环境变量以启用邮件通知")
+        
+        # 创建 Microsoft To Do 任务
+        if os.environ.get('MS_TODO_CLIENT_ID'):
+            create_todo_tasks(updates, settings)
+        else:
+            print("⚠️  未配置 Microsoft To Do，跳过任务创建")
+            print("   设置 MS_TODO_* 环境变量以启用待办事项")
         
         # 设置GitHub Actions输出
         github_output = os.environ.get('GITHUB_OUTPUT')

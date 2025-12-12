@@ -38,11 +38,17 @@ jobs:
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 邮件配置
           EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
           EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          # Microsoft To Do 配置
+          MS_TODO_CLIENT_ID: ${{ secrets.MS_TODO_CLIENT_ID }}
+          MS_TODO_REFRESH_TOKEN: ${{ secrets.MS_TODO_REFRESH_TOKEN }}
+          MS_TODO_TENANT_ID: ${{ secrets.MS_TODO_TENANT_ID }}
+          MS_TODO_CLIENT_SECRET: ${{ secrets.MS_TODO_CLIENT_SECRET }}
         run: |
           python scripts/check_updates.py
       
