@@ -1,12 +1,12 @@
 {
   "monitors": {
     "VM-Chinese-translate-group/Prominence-II-Chinese:main:CNPack/modpackinfo.json": {
-      "last_sha": "5f9cc6cddda56b3468178f17d30cb0f462608859",
-      "last_check": "2025-12-12T17:17:58.406332",
+      "last_sha": "f9bd1584c3ee2773ff5f005da43041db30a99138",
+      "last_check": "2025-12-12T17:37:59.770494",
       "path": "CNPack/modpackinfo.json",
       "repo": "VM-Chinese-translate-group/Prominence-II-Chinese",
       "branch": "main"
     }
   },
-  "last_check": "2025-12-12T17:17:58.406347"
+  "last_check": "2025-12-12T17:37:59.770515"
 }
