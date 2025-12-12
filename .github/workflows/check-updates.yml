@@ -1,0 +1,68 @@
+name: Lang Monitor - 翻译文件更新检查
+
+on:
+  # 定时运行 - 每6小时检查一次
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      force_notify:
+        description: '强制发送通知（即使无更新）'
+        required: false
+        default: false
+        type: boolean
+
+# 设置工作流权限
+permissions:
+  contents: write  # 需要写权限来提交状态文件
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+        with:
+          # 使用PAT以便能够推送更改
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🐍 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 🔍 运行更新检查
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          python scripts/check_updates.py
+      
+      - name: 💾 提交状态更新
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 检查是否有变更
+          if git diff --quiet data/state.json; then
+            echo "📝 状态文件无变更"
+          else
+            git add data/state.json
+            git commit -m "🔄 更新监控状态 [skip ci]"
+            git push
+            echo "✅ 状态文件已更新并推送"
+          fi
+      
+      - name: 📊 输出检查结果
+        if: always()
+        run: |
+          echo "检查完成时间: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "更新数量: ${{ steps.check.outputs.update_count || '0' }}"

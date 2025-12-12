@@ -1,0 +1,29 @@
+{
+  "monitors": [
+    {
+      "name": "test",
+      "repo": "VM-Chinese-translate-group/Prominence-II-Chinese",
+      "branch": "main",
+      "paths": [
+        "CNPack/modpackinfo.json"
+      ],
+      "enabled": true
+    },
+    {
+      "name": "示例-多文件监控",
+      "repo": "another-owner/another-repo",
+      "branch": "master",
+      "paths": [
+        "lang/",
+        "i18n/en.json"
+      ],
+      "enabled": false
+    }
+  ],
+  "settings": {
+    "check_interval_hours": 6,
+    "email_subject_prefix": "[Lang-Monitor]",
+    "include_diff_link": true,
+    "include_commit_message": true
+  }
+}
