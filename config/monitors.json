@@ -1,31 +1,52 @@
 {
+  "defaults": {
+    "branch": "main",
+    "enabled": true
+  },
+
+  "templates": {
+    "minecraft_mod_lang": {
+      "paths": ["src/main/resources/assets/{modid}/lang/en_us.json"]
+    },
+    "minecraft_mod_generated": {
+      "paths": ["src/generated/resources/assets/{modid}/lang/en_us.json"]
+    }
+  },
+
+  "batch": [
+  ],
+
   "monitors": [
     {
-      "name": "test",
-      "repo": "VM-Chinese-translate-group/Prominence-II-Chinese",
-      "branch": "main",
-      "paths": [
-        "CNPack/modpackinfo.json"
-      ],
-      "enabled": true
+      "name": "FTB Stuff",
+      "repo": "FTBTeam/FTB-Stuff-Things",
+      "template": "minecraft_mod_generated",
+      "vars": { "modid": "ftbstuff" }
     },
     {
-      "name": "示例-多文件监控",
-      "repo": "another-owner/another-repo",
-      "branch": "master",
-      "paths": [
-        "lang/",
-        "i18n/en.json"
-      ],
-      "enabled": false
+      "name": "FTB Pack Companion",
+      "repo": "FTBTeam/FTB-Pack-Companion",
+      "template": "minecraft_mod_generated",
+      "vars": { "modid": "ftbpc" }
+    },
+    {
+      "name": "GAG",
+      "repo": "MaxNeedsSnacks/gag",
+      "branch": "1.21.1",
+      "template": "minecraft_mod_generated",
+      "vars": { "modid": "gag" }
+    },
+    {
+      "name": "Gateways",
+      "repo": "Shadows-of-Fire/GatewaysToEternity",
+      "branch": "1.21",
+      "template": "minecraft_mod_lang",
+      "vars": { "modid": "gateways" }
     }
   ],
+
   "settings": {
-    "check_interval_hours": 6,
     "email_subject_prefix": "[Lang-Monitor]",
-    "email_sender_name": "Lang-Monitor 🔔",
-    "include_diff_link": true,
-    "include_commit_message": true,
-    "todo_list_name": "Lang-Monitor"
+    "email_sender_name": "Lang-Monitor"
   }
 }

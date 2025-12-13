@@ -8,15 +8,11 @@ on:
   # 允许手动触发
   workflow_dispatch:
     inputs:
-      force_notify:
-        description: '强制发送通知（即使无更新）'
+      reset_state:
+        description: '重置状态（清除历史记录，重新开始监控）'
         required: false
         default: false
         type: boolean
-
-# 设置工作流权限
-permissions:
-  contents: write  # 需要写权限来提交状态文件
 
 jobs:
   check-updates:
@@ -24,48 +20,41 @@ jobs:
     
     steps:
       - name: 📥 检出仓库
-        uses: actions/checkout@v4
-        with:
-          # 使用PAT以便能够推送更改
-          token: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/checkout@v6.0.1
       
       - name: 🐍 设置 Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
+      - name: 📦 恢复状态缓存
+        if: ${{ github.event.inputs.reset_state != 'true' }}
+        id: cache-state
+        uses: actions/cache@v5.0.1
+        with:
+          path: data/state.json
+          key: monitor-state-${{ github.run_id }}
+          restore-keys: |
+            monitor-state-
+      
       - name: 🔍 运行更新检查
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 邮件配置
           EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
           EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          # Microsoft To Do 配置
-          MS_TODO_CLIENT_ID: ${{ secrets.MS_TODO_CLIENT_ID }}
-          MS_TODO_REFRESH_TOKEN: ${{ secrets.MS_TODO_REFRESH_TOKEN }}
-          MS_TODO_TENANT_ID: ${{ secrets.MS_TODO_TENANT_ID }}
-          MS_TODO_CLIENT_SECRET: ${{ secrets.MS_TODO_CLIENT_SECRET }}
         run: |
           python scripts/check_updates.py
       
-      - name: 💾 提交状态更新
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          # 检查是否有变更
-          if git diff --quiet data/state.json; then
-            echo "📝 状态文件无变更"
-          else
-            git add data/state.json
-            git commit -m "🔄 更新监控状态 [skip ci]"
-            git push
-            echo "✅ 状态文件已更新并推送"
-          fi
+      - name: 💾 保存状态缓存
+        uses: actions/cache/save@v5.0.1
+        if: always()
+        with:
+          path: data/state.json
+          key: monitor-state-${{ github.run_id }}
       
       - name: 📊 输出检查结果
         if: always()

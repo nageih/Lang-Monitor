@@ -1,0 +1,121 @@
+{
+  "// ======================================": "配置文件使用说明",
+  "// 本文件展示所有支持的配置语法": "实际使用时复制需要的部分到 monitors.json",
+  "// JSON不支持注释，这里用特殊键名作为说明": "使用时可以删除这些说明",
+
+  "// ==================== defaults ====================": "",
+  "// defaults 定义所有监控项的默认值": "可被单个监控项覆盖",
+  "defaults": {
+    "branch": "main",
+    "enabled": true
+  },
+
+  "// ==================== templates ====================": "",
+  "// templates 定义可复用的配置模板": "",
+  "// 模板中可以使用 {变量名} 占位符": "在 monitors 中通过 vars 传入具体值",
+  "templates": {
+    "minecraft_mod_lang": {
+      "// 说明": "标准 Minecraft 模组语言文件路径",
+      "paths": ["src/main/resources/assets/{modid}/lang/en_us.json"]
+    },
+    "minecraft_mod_generated": {
+      "// 说明": "数据生成器生成的语言文件路径",
+      "paths": ["src/generated/resources/assets/{modid}/lang/en_us.json"]
+    },
+    "forge_mod_multi": {
+      "// 说明": "同时监控多个语言文件",
+      "paths": [
+        "src/main/resources/assets/{modid}/lang/en_us.json",
+        "src/generated/resources/assets/{modid}/lang/en_us.json"
+      ]
+    }
+  },
+
+  "// ==================== batch ====================": "",
+  "// batch 用于批量配置多个仓库": "适合同一组织下使用相同配置的多个项目",
+  "batch": [
+    {
+      "// 示例1": "批量配置 + 精确路径",
+      "repos": [
+        "FTBTeam/FTB-Stuff-Things",
+        "FTBTeam/FTB-Pack-Companion",
+        "FTBTeam/FTB-XMod-Compat"
+      ],
+      "branch": "main",
+      "paths": ["src/generated/resources/assets/*/lang/en_us.json"]
+    },
+    {
+      "// 示例2": "批量配置 + 通配符",
+      "repos": [
+        "Creators-of-Create/Create",
+        "Creators-of-Create/CreateAddition"
+      ],
+      "branch": "mc1.20.1/dev",
+      "paths_glob": ["**/lang/en_us.json"]
+    }
+  ],
+
+  "// ==================== monitors ====================": "",
+  "// monitors 是主要的监控配置列表": "",
+  "monitors": [
+    {
+      "// 方式1 - 使用模板+变量 (推荐)": "",
+      "name": "FTB Stuff",
+      "repo": "FTBTeam/FTB-Stuff-Things",
+      "template": "minecraft_mod_generated",
+      "vars": { "modid": "ftbstuff" }
+    },
+    {
+      "// 方式2 - 精确路径 (传统方式)": "",
+      "name": "Applied Energistics 2",
+      "repo": "AppliedEnergistics/Applied-Energistics-2",
+      "branch": "main",
+      "paths": [
+        "src/main/resources/assets/ae2/lang/en_us.json"
+      ]
+    },
+    {
+      "// 方式3 - 通配符路径 (glob)": "",
+      "// 支持的通配符": "* 匹配任意字符, ** 匹配任意路径深度, ? 匹配单个字符",
+      "name": "Architectury API",
+      "repo": "architectury/architectury-api",
+      "branch": "1.21",
+      "paths_glob": [
+        "**/lang/en_us.json",
+        "*/src/main/**/en_us.json"
+      ]
+    },
+    {
+      "// 方式4 - 正则表达式路径": "",
+      "// 使用完整的Python正则表达式语法": "",
+      "name": "Create Mod",
+      "repo": "Creators-of-Create/Create",
+      "branch": "mc1.20.1/dev",
+      "paths_regex": [
+        ".*\\/lang\\/en_us\\.json$",
+        "src\\/main\\/resources\\/.*\\.json$"
+      ]
+    },
+    {
+      "// 方式5 - 混合使用多种路径类型": "",
+      "name": "综合示例",
+      "repo": "example/repo",
+      "paths": ["exact/path/file.json"],
+      "paths_glob": ["**/lang/*.json"],
+      "paths_regex": ["data\\/.*\\.json$"]
+    },
+    {
+      "// 方式6 - 禁用监控项": "",
+      "name": "暂停监控的项目",
+      "repo": "example/disabled",
+      "paths": ["some/path.json"],
+      "enabled": false
+    }
+  ],
+
+  "// ==================== settings ====================": "",
+  "settings": {
+    "email_subject_prefix": "[Lang-Monitor]",
+    "email_sender_name": "语言文件监控器"
+  }
+}
