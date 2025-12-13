@@ -3,48 +3,114 @@
     "branch": "main",
     "enabled": true
   },
-
   "templates": {
     "minecraft_mod_lang": {
-      "paths": ["src/main/resources/assets/{modid}/lang/en_us.json"]
+      "paths": [
+        "src/main/resources/assets/{modid}/lang/en_us.json"
+      ]
     },
     "minecraft_mod_generated": {
-      "paths": ["src/generated/resources/assets/{modid}/lang/en_us.json"]
+      "paths": [
+        "src/generated/resources/assets/{modid}/lang/en_us.json"
+      ]
     }
   },
-
   "batch": [
+    {
+      "repos": [
+        "FTBTeam/FTB-Stuff-Things",
+        "FTBTeam/FTB-Pack-Companion",
+        "FTBTeam/FTB-Echoes",
+        "FTBTeam/FTB-Team-Bases",
+        "FTBTeam/Mighty-Ender-Chicken-Rehatched",
+        "FTBTeam/FTB-OceanMobs"
+      ],
+      "branch": "main",
+      "paths": [
+        "src/generated/resources/assets/*/lang/en_us.json"
+      ]
+    }
   ],
-
   "monitors": [
-    {
-      "name": "FTB Stuff",
-      "repo": "FTBTeam/FTB-Stuff-Things",
-      "template": "minecraft_mod_generated",
-      "vars": { "modid": "ftbstuff" }
-    },
-    {
-      "name": "FTB Pack Companion",
-      "repo": "FTBTeam/FTB-Pack-Companion",
-      "template": "minecraft_mod_generated",
-      "vars": { "modid": "ftbpc" }
-    },
     {
       "name": "GAG",
       "repo": "MaxNeedsSnacks/gag",
       "branch": "1.21.1",
       "template": "minecraft_mod_generated",
-      "vars": { "modid": "gag" }
+      "vars": {
+        "modid": "gag"
+      }
     },
     {
       "name": "Gateways",
       "repo": "Shadows-of-Fire/GatewaysToEternity",
       "branch": "1.21",
       "template": "minecraft_mod_lang",
-      "vars": { "modid": "gateways" }
+      "vars": {
+        "modid": "gateways"
+      }
+    },
+    {
+      "name": "Dark Mode",
+      "repo": "Buuz135/DarkModeEverywhere",
+      "branch": "main",
+      "template": "minecraft_mod_lang",
+      "vars": {
+        "modid": "darkmodeeverywhere"
+      }
+    },
+    {
+      "name": "Iron的珠宝",
+      "repo": "iron431/irons-jewelry",
+      "branch": "main",
+      "template": "minecraft_mod_lang",
+      "vars": {
+        "modid": "irons_jewelry"
+      }
+    },
+    {
+      "name": "FTB Materials",
+      "repo": "FTBTeam/FTB-Materials",
+      "branch": "main",
+      "paths": [
+        "fabric/src/main/generated/assets/ftbmaterials/lang/en_us.json"
+      ]
+    },
+    {
+      "name": "JustHammers",
+      "repo": "nanite/JustHammers",
+      "branch": "main",
+      "paths": [
+        "common/src/main/generated/assets/justhammers/lang/en_us.json"
+      ]
+    },
+    {
+      "name": "Farming Crossing 5",
+      "repo": "khazenor/farming-crossing-5",
+      "branch": "main",
+      "paths": [
+        "config/ftbquests/quests/lang/en_us.snbt",
+        "global_packs/fc_packs/modpack_translations/assets/farming_crossing/lang/en_us.json"
+      ]
+    },
+    {
+      "name": "Craftoria",
+      "repo": "TeamAOF/Craftoria",
+      "branch": "main",
+      "paths": [
+        "config/ftbquests/quests/lang/en_us/",
+        "kubejs/assets/craftoria/lang/en_us.json"
+      ]
+    },
+    {
+      "name": "MCE 2",
+      "repo": "adam9899/MC-Eternal-2",
+      "branch": "main",
+      "paths_glob": [
+        "overrides/kubejs/assets/*/lang/en_us.json"
+      ]
     }
   ],
-
   "settings": {
     "email_subject_prefix": "[Lang-Monitor]",
     "email_sender_name": "Lang-Monitor"
